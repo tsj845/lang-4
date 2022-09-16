@@ -1,0 +1,155 @@
+STYLE
+
+variables and function returns will be typed
+
+allows for interfaces and generics
+
+subclasses will fit into values that have a type of a parent class
+
+BASE SYNTAX
+
+"{" and "}" surround blocks
+"[" and "]" are used for array creation and accesses
+quotes are used for strings
+";" end each instruction
+
+KEYWORDS
+
+return [value] *[,others];
+returnf [value] *[,others];
+[returntype] func [name] (*[argtype argname]) {}
+if ([condition]) {}
+elseif ([condition]) {}
+else {}
+loop {}
+while ([condition]) {}
+for (int [v]; [condition]; [v][op]) {}
+for ([type] [v] in [iterable]) {}
+continue;
+break;
+try {}
+catch ([etype] [e]) {}
+finally {}
+class [name] {
+    *[fieldtype fieldname;]
+    constructor (*[argtype argname]) {}
+    *func [methodname]
+}
+static [method]
+static [field];
+private [method]
+private [field];
+public [method];
+public [field];
+readonly [field];
+const [type] [name] = [value];
+import [name];
+from [name] import +[items];
+
+RESERVED NAMES
+
+this - for use in class and struct to access properties and methods of the current instance
+Self - self type
+super - for use in accessing parent constructor
+
+BUILTINS
+
+Error - base error
+Object - base object, all classes implicitly inherit from this
+
+PRIMITIVE TYPES
+
+string
+bool
+int
+short
+long
+byte
+uint
+ushort
+ulong
+float
+double
+
+OPERATORS
+
++       addition and concatenation
+-       subtraction and negative
+*       multiply and wildcard
+/       division
+**      exponentiation
+%       modulo
+!       logical and bitwise NOT
+&       bitwise AND
+&&      logical AND
+|       bitwise OR
+||      logical OR
+^       logical and bitwise XOR
+<       less than
+>       greater than
+...     spread
+.       member
+?       ternary
+=       assignment
+<=      less than or equal to
+>=      greater than or equal to
+<<      left shift
+>>      right shift
+|<      roll left
+>|      roll right
+==      equal
+!=      not equal
+!!=     bitwise and logical NOT assignment
+&=      bitwise AND assignment
+&&=     logical AND assignment
+|=      bitwise OR assignment
+||=     logical OR assignment
+^=      logical and bitwise XOR assignment
++=      addition and concatenation assignment
+-=      subtraction assignment
+*=      multiplication assignment
+/=      division assignment
+**=     exponentiation assignment
+%=      modulo assignment
+$       unwrap
+++      increment
+--      decrement
+<<=     left shift assignment
+>>=     right shift assignment
+|<=     roll left assignment
+>|=     roll right assignment
+
+UNWRAPPING
+
+all non-primitive types (classes) are "wrapped" in a pointer, this means they cannot leave the scope they are created in
+they may be passed as arguments to a function in which case a copy of the pointer is passed instead
+
+however, as the class does not actually get moved, you cannot return the class as attempting to do so will result in a dangling pointer (a pointer that tries to point to something that no longer exists)
+
+to return a class use the "unwrap" operator ("$"), this will tell the interpreter to move the class (NOTE there is an important optimization to prevent multiple moves in which a class is passed up a chain of function calls whithout being modified. it is to move the class to the first function that MODIFIES it)
+
+ORDERS
+
+@parent(_);
+class _ {
+    [public|private]? [static]? [readonly]? [type] [name];...
+    constructor (*[arglst]) {
+        [super();]?
+    }
+    [public|private]? [static]? [returntype] func [name] (*[arglst]) {}
+}
+
+DIRECTIVES
+
+accessed with "@[directive](*[arglst]);"
+
+@wraps(); - function below conforms to the wrapper function standard
+@wrap(Wrapper wrapper); - wraps the below function in the given wrapper function
+@parent(Object parent_class); - the below class should inherit from parent class
+
+STD
+
+io - stdin, stdout, stderr
+fs - File {open, close, read, write, tell, seek}
+random - Random {random, getseed, setseed, randint, randf, choice, shuffle}
+sys - env, argv, argc, command

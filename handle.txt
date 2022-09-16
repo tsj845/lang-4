@@ -1,0 +1,33 @@
+THIS FILE DESCRIBES GENERAL APPROACHES TO THE STRUCTURE AND FORMAT OF THE INTERPRETER
+
+VARIABLE STORAGE
+
+general cases:
+    local variables will be stored as an enum member with the value of the variable inside it under the "local scope"
+
+    static class members will be stored under the "class init object"
+
+    class instance members will be stored under the "class instance object" they belong to
+
+special cases:
+    the "this" keyword/variable will reside in the "special scope"
+
+    any attempt to access "this" outside of an instance method will throw an error as will attempting to write to it under any circumstances
+
+special scope - a scope which is always accessable but is readonly for the program, variables inside it are set by the interpreter
+
+DIRECTIVES
+
+directives will act as "hooks" to manipulate data inside the program from within the interpreter
+
+CLASSES:
+    classes are stored as base objects ("class init object") in the scope they are defined in
+
+    the only place class methods are stored is within the "class init object"
+
+    a "class instance object" will only store the instance fields
+
+    the "class init object" will have two "areas" one for instance members and one for static members
+
+UNWRAPPING:
+    when doing an unwrap, the interpreter will first move the object to the appropriate scope, then will return a pointer to it to the caller
