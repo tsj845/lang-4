@@ -45,6 +45,7 @@ readonly [field];
 const [type] [name] = [value];
 import [name];
 from [name] import +[items];
+[var] as [type];
 
 RESERVED NAMES
 
@@ -118,6 +119,8 @@ $       unwrap
 >>=     right shift assignment
 |<=     roll left assignment
 >|=     roll right assignment
+,       comma
+:       colon
 
 UNWRAPPING
 

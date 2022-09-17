@@ -2,11 +2,13 @@ use crate::data::{Token, Primitive, token_to_id, primitive_to_id};
 use crate::tobytes::*;
 use std::fs::{read, write};
 
+const KEYWORDS: [&str; 24] = ["return", "returnf", "func", "if", "elseif", "else", "loop", "while", "for", "continue", "break", "try", "catch", "finally", "class", "constructor", "static", "private", "public", "readonly", "const", "import", "from", "as"];
+
 fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
     let mut v: Vec<Token> = Vec::new();
     let mut i: usize = 0;
     let l: usize = data.len();
-    println!("{:?}", data);
+    // println!("{:?}", data);
     loop {
         if i >= l {
             break;
@@ -14,8 +16,8 @@ fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
         let id = data[i];
         if id == 1 || id == 4 || id == 5 || id == 6 {
             let length: usize = bytes_to_big(&data[i+1..i+9]);
-            println!("{}, {:?}", i, data);
-            println!("{}, {:?}", length, &data[i+1..i+9]);
+            // println!("{}, {:?}", i, data);
+            // println!("{}, {:?}", length, &data[i+1..i+9]);
             let string: String = match String::from_utf8(Vec::from(&data[i+9..i+9+length])) {Ok(s)=>s,Err(_)=>{return Err(String::from("INVALID STRING LOAD NON UTF8"));}};
             v.push(match id {
                 1 => Token::Ptr(string),
@@ -27,7 +29,7 @@ fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
             i += 8 + length;
         } else if id == 0 {
             let length: usize = bytes_to_big(&data[i+1..i+9]);
-            println!("{}, {:?}", length, &data[i+1..i+9]);
+            // println!("{}, {:?}", length, &data[i+1..i+9]);
             v.push(Token::Grp(l_load(&Vec::from(&data[i+9..i+9+length]))?));
             i += 8 + length;
         } else if id == 3 {
@@ -35,6 +37,7 @@ fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
             i += 1;
         } else if id == 2 {
             i += 1;
+            // load primitive values
             match &data[i] {
                 0 => {
                     let length: usize = bytes_to_big(&data[i+1..i+9]);
@@ -84,6 +87,9 @@ fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
                 },
                 _ => {return Err("INVALID PRIMITIVE TYPE ID".to_string());},
             };
+        } else if id == 7 {
+            v.push(Token::Sym(data[i+1] as char));
+            i += 1;
         }
         i += 1;
     }
@@ -95,6 +101,7 @@ pub fn load(path: &str) -> Result<Vec<Token>, String> {
     return l_load(&data);
 }
 
+// recursive function to flatten groups
 fn s_flatten(data: &Vec<Token>) -> Vec<u8> {
     let mut i: usize = 0;
     let l: usize = data.len();
@@ -133,24 +140,27 @@ fn s_flatten(data: &Vec<Token>) -> Vec<u8> {
             },_=>{panic!("");}};
         } else if id == 3 {
             v.push(match &data[i] {Token::Opr(val)=>*val,_=>{panic!("");}});
+        } else if id == 7 {
+            v.push(match &data[i] {Token::Sym(c)=>*c as u8,_=>{panic!("");}});
         }
         i += 1;
     }
     return v;
 }
 
-pub fn save(path: &str, data: Vec<Token>) {
-    match write(path, s_flatten(&data).as_slice()) {Ok(_)=>{}, Err(e)=>{println!("{}", e);}};
+pub fn save(path: &str, data: &Vec<Token>) {
+    match write(path, s_flatten(data).as_slice()) {Ok(_)=>{}, Err(e)=>{println!("{}", e);}};
 }
 
-pub fn compile(path: &str) -> Result<Vec<Token>, String> {
+fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
     let mut v: Vec<Token> = Vec::new();
-    let contents: Vec<char> = match String::from_utf8(match read(path){Ok(ve)=>ve,Err(_)=>{return Err("ERROR READING FILE".to_owned());}}){Ok(s)=>s,Err(_)=>{return Err("FILE CONTENTS NOT VALID UTF8".to_owned());}}.chars().collect();
     let mut i: usize = 0;
     let l: usize = contents.len();
     let mut build: String = String::new();
     while i < l {
-        if contents[i] == ' ' || contents[i] == '\n' {i+=1;continue;}
+        // whitespace
+        if contents[i] == ' ' || contents[i] == '\n' || contents[i] == '\t' {i+=1;continue;}
+        // strings
         if contents[i] == '"' {
             i += 1;
             let mut x = true;
@@ -174,8 +184,11 @@ pub fn compile(path: &str) -> Result<Vec<Token>, String> {
             i += 1;
             continue;
         }
-        if "+-*/%!&|^=<>?.$".contains(contents[i]) {
+        // operators
+        if "+-*/%!&|^=<>?.$,:".contains(contents[i]) {
             v.push(Token::Opr(match contents[i] {
+                ',' => 45,
+                ':' => 46,
                 '+' => match i + 1 < l {false=>0,_=>match contents[i+1] {
                     '=' => {i+=1;32},
                     '+' => {i+=1;39},
@@ -269,8 +282,72 @@ pub fn compile(path: &str) -> Result<Vec<Token>, String> {
                 '$' => 38,
                 _ => {return Err("UNEXPECTED OPERATOR".to_owned());},
             }));
+            i += 1;
+            continue;
         }
+        if contents[i].is_alphabetic() || contents[i] == '_' {
+            while i < l {
+                if !(contents[i].is_alphanumeric() || contents[i] == '_') {
+                    break;
+                }
+                build.push(contents[i]);
+                i += 1;
+            }
+            v.push(match build.as_str() {
+                "true" => Token::Dat(Primitive::Bool(true)),
+                "false" => Token::Dat(Primitive::Bool(false)),
+                _ => {
+                    if KEYWORDS.contains(&build.as_str()) {
+                        Token::Kwd(build)
+                    } else {
+                        Token::Lit(build)
+                    }
+                }
+            });
+            build = String::new();
+            continue;
+        }
+        if contents[i] == '@' {
+            i += 1;
+            while i < l {
+                if !(contents[i].is_alphanumeric() || contents[i] == '_') {
+                    break;
+                }
+                build.push(contents[i]);
+                i += 1;
+            }
+            v.push(Token::Dir(build));
+            build = String::new();
+            continue;
+        }
+        if contents[i] == '(' {
+            let mut depth: usize = 1;
+            i += 1;
+            while i < l {
+                if contents[i] == ')' {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                build.push(contents[i]);
+                if contents[i] == '(' {
+                    depth += 1;
+                }
+                i += 1;
+            }
+            v.push(Token::Grp(c_comp(&build.chars().collect::<Vec<char>>())?));
+            build = String::new();
+            i += 1;
+            continue;
+        }
+        v.push(Token::Sym(contents[i]));
         i += 1;
     }
     return Ok(v);
+}
+
+pub fn compile(path: &str) -> Result<Vec<Token>, String> {
+    let contents: Vec<char> = match String::from_utf8(match read(path){Ok(ve)=>ve,Err(_)=>{return Err("ERROR READING FILE".to_owned());}}){Ok(s)=>s,Err(_)=>{return Err("FILE CONTENTS NOT VALID UTF8".to_owned());}}.chars().collect();
+    return c_comp(&contents[..]);
 }
