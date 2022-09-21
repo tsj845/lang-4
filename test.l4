@@ -1,9 +1,8 @@
-+ - * / ** % ! & && | || ^ < > ... . ? = <= >= << >> |< >| == != !!= &= &&= |= ||= ^= += -= *= /= **= %= $ ++ -- <<= >>= |<= >|=
-
 @TEST();
 
 class Test {
     private static readonly bool on = true;
+    string hello = "world";
 }
 
-("TEST" + ("!" + "?"));
+("TEST" + ("!" + "\x1b[38;2;0;255;255m?\x1b[0m"));

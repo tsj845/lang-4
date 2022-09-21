@@ -10,6 +10,7 @@ pub fn token_to_id(t: &Token) -> u8 {
         Token::Kwd(_) => 5,
         Token::Lit(_) => 6,
         Token::Sym(_) => 7,
+        Token::Typ(_) => 8,
     };
 }
 
@@ -82,20 +83,22 @@ pub enum Token {
     Kwd(String), // keyword
     Lit(String), // literal text (names)
     Sym(char), // single character symbol
+    Typ(u8), // value type
 }
 
 impl fmt::Debug for Token {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        print!("{}(", match self {Token::Grp(_)=>"Grp",Token::Ptr(_)=>"ptr",Token::Dat(_)=>"Dat",Token::Opr(_)=>"Opr",Token::Dir(_)=>"Dir",Token::Kwd(_)=>"Kwd",Token::Lit(_)=>"Lit",Token::Sym(_)=>"Sym",});
+        print!("{}(", match self {Token::Grp(_)=>"Grp",Token::Ptr(_)=>"ptr",Token::Dat(_)=>"Dat",Token::Opr(_)=>"Opr",Token::Dir(_)=>"Dir",Token::Kwd(_)=>"Kwd",Token::Lit(_)=>"Lit",Token::Sym(_)=>"Sym",Token::Typ(_)=>"Type",});
         match self {
             Token::Grp(v)=>print!("{:?}", v),
             Token::Ptr(s)=>print!("{s}"),
             Token::Dat(p)=>print!("{p:?}"),
             Token::Opr(o)=>print!("\x1b[38;2;255;100;50m{}\x1b[0m",match o{0=>&"+",1=>&"-",2=>&"*",3=>&"/",4=>&"**",5=>&"%",6=>&"!",7=>&"&",8=>&"&&",9=>&"|",10=>&"||",11=>&"^",12=>&"<",13=>&">",14=>&"...",15=>&".",16=>&"?",17=>&"=",18=>&"<=",19=>&">=",20=>&"<<",21=>&">>",22=>&"|<",23=>&">|",24=>&"==",25=>&"!=",26=>&"!!=",27=>&"&=",28=>&"&&=",29=>&"|=",30=>&"||=",31=>&"^=",32=>&"+=",33=>&"-=",34=>&"*=",35=>&"/=",36=>&"**=",37=>&"%=",38=>&"$",39=>&"++",40=>&"--",41=>&"<<=",42=>&">>=",43=>&"|<=",44=>&">|=",45=>&",",46=>&":",_=>&"INVALID"}),
-            Token::Dir(s)=>print!("{s}"),
-            Token::Kwd(s)=>print!("{s}"),
-            Token::Lit(s)=>print!("{s}"),
-            Token::Sym(c)=>print!("{c}"),
+            Token::Dir(s)=>print!("\x1b[38;2;255;100;150m{s}\x1b[0m"),
+            Token::Kwd(s)=>print!("\x1b[38;2;200;100;255m{s}\x1b[0m"),
+            Token::Lit(s)=>print!("\x1b[38;2;255;150;0m{s}\x1b[0m"),
+            Token::Sym(c)=>print!("\x1b[38;2;150;150;150m{c}\x1b[0m"),
+            Token::Typ(t)=>print!("\x1b[38;2;0;225;225m{}\x1b[0m",match t{0=>"string",1=>"bool",2=>"int",3=>"short",4=>"long",5=>"byte",6=>"uint",7=>"ushort",8=>"ulong",9=>"float",10=>"double",_=>"INVALID"}),
         };
         print!(")");
         return Ok(());

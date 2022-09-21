@@ -144,6 +144,8 @@ class _ {
 
 DIRECTIVES
 
+directives are statements that directly invoke rust code from the interpreter, note that directives are not hardcoded into the interpreter and are modular
+
 accessed with "@[directive](*[arglst]);"
 
 @wraps(); - function below conforms to the wrapper function standard

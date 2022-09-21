@@ -4,6 +4,8 @@ use std::fs::{read, write};
 
 const KEYWORDS: [&str; 24] = ["return", "returnf", "func", "if", "elseif", "else", "loop", "while", "for", "continue", "break", "try", "catch", "finally", "class", "constructor", "static", "private", "public", "readonly", "const", "import", "from", "as"];
 
+const TYPELST: [&str; 11] = ["string", "bool", "int", "short", "long", "byte", "uint", "ushort", "ulong", "float", "double"];
+
 fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
     let mut v: Vec<Token> = Vec::new();
     let mut i: usize = 0;
@@ -34,6 +36,9 @@ fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
             i += 8 + length;
         } else if id == 3 {
             v.push(Token::Opr(*&data[i+1]));
+            i += 1;
+        } else if id == 8 {
+            v.push(Token::Typ(*&data[i+1]));
             i += 1;
         } else if id == 2 {
             i += 1;
@@ -138,8 +143,8 @@ fn s_flatten(data: &Vec<Token>) -> Vec<u8> {
                     Primitive::Null => {},
                 };
             },_=>{panic!("");}};
-        } else if id == 3 {
-            v.push(match &data[i] {Token::Opr(val)=>*val,_=>{panic!("");}});
+        } else if id == 3 || id == 8 {
+            v.push(match &data[i] {Token::Opr(val)=>*val,Token::Typ(val)=>*val,_=>{panic!("");}});
         } else if id == 7 {
             v.push(match &data[i] {Token::Sym(c)=>*c as u8,_=>{panic!("");}});
         }
@@ -152,19 +157,47 @@ pub fn save(path: &str, data: &Vec<Token>) {
     match write(path, s_flatten(data).as_slice()) {Ok(_)=>{}, Err(e)=>{println!("{}", e);}};
 }
 
-fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
+fn c_stamp(emsg: &str, lc: usize, cc: usize) -> String {
+    return format!("{emsg} ({lc}, {cc})");
+}
+
+fn c_comp(contents: &[char], mut lc: usize, mut cc: usize) -> Result<Vec<Token>, String> {
+    // for c in contents {
+    //     print!("{c}");
+    // }
+    // println!();
     let mut v: Vec<Token> = Vec::new();
     let mut i: usize = 0;
     let l: usize = contents.len();
     let mut build: String = String::new();
     while i < l {
+        cc += 1;
+        // comments
+        if i + 1 < l {
+            if contents[i] == '/' && contents[i+1] == '/' {
+                while i < l {
+                    i += 1;
+                    if contents[i] == '\n' {
+                        lc += 1;
+                        cc = 0;
+                        break;
+                    }
+                }
+                i += 1;
+                continue;
+            }
+        }
         // whitespace
+        if contents[i] == '\n' {lc+=1;cc=0;}
         if contents[i] == ' ' || contents[i] == '\n' || contents[i] == '\t' {i+=1;continue;}
         // strings
         if contents[i] == '"' {
+            // println!("STR ENTER: {i}, {:?}", &contents[i..]);
             i += 1;
+            cc += 1;
             let mut x = true;
             while i < l {
+                cc += 1;
                 if contents[i] == '"' {
                     v.push(Token::Dat(Primitive::String(build)));
                     build = String::new();
@@ -175,17 +208,31 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
                     println!("BROKEN STRING");
                     break;
                 }
+                if contents[i] == '\\' {
+                    if i + 1 >= l {
+                        return Err(c_stamp("EOF AFTER BACKSLASH", lc, cc));
+                    }
+                    build.push(match contents[i+1] {
+                        'x' => match i+3<l{false=>{return Err(c_stamp("INVALID ESCAPE (EOF)",lc,cc));}_=>{i+=2;(match contents[i].to_digit(16){Some(a)=>a,None=>{return Err(c_stamp("INVALID ESCAPE (CHAR)",lc,cc));}}*16+match contents[i+1].to_digit(16){Some(a)=>a,None=>{return Err(c_stamp("INVALID ESCAPE (CHAR)",lc,cc));}}) as u8 as char}},
+                        _ => contents[i+1],
+                    });
+                    i += 2;
+                    continue;
+                }
                 build.push(contents[i]);
                 i += 1;
             }
             if x {
-                return Err("UNCLOSED STRING".to_owned());
+                // println!("{}:{}; {}", lc, i, build);
+                return Err(c_stamp(&format!("UNCLOSED STRING: {build}"),lc,cc));
             }
             i += 1;
+            cc += 1;
             continue;
         }
         // operators
         if "+-*/%!&|^=<>?.$,:".contains(contents[i]) {
+            let freeze = i;
             v.push(Token::Opr(match contents[i] {
                 ',' => 45,
                 ':' => 46,
@@ -219,7 +266,7 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
                     '=' => {i+=1;25},
                     '!' => match contents[i+2] {
                         '=' => {i+=2;26},
-                        _ => {return Err("INVALID OPERATOR".to_owned());},
+                        _ => {return Err(c_stamp("INVALID OPERATOR",lc,cc));},
                     },
                     _ => 6,
                 }},
@@ -270,7 +317,7 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
                 '.' => match i + 1 < l {false=>15,_=>match contents[i+1] {
                     '.' => match contents[i+2] {
                         '.' => {i+=2;14},
-                        _ => {return Err("INVALID OPERATOR".to_owned());},
+                        _ => {return Err(c_stamp("INVALID OPERATOR",lc,cc));},
                     },
                     _ => 15,
                 }},
@@ -280,13 +327,15 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
                     _ => 17,
                 }},
                 '$' => 38,
-                _ => {return Err("UNEXPECTED OPERATOR".to_owned());},
+                _ => {return Err(c_stamp("UNEXPECTED OPERATOR",lc,cc));},
             }));
             i += 1;
+            cc += i - freeze;
             continue;
         }
         if contents[i].is_alphabetic() || contents[i] == '_' {
             while i < l {
+                cc += 1;
                 if !(contents[i].is_alphanumeric() || contents[i] == '_') {
                     break;
                 }
@@ -299,6 +348,21 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
                 _ => {
                     if KEYWORDS.contains(&build.as_str()) {
                         Token::Kwd(build)
+                    } else if TYPELST.contains(&build.as_str()) {
+                        Token::Typ(match build.as_str() {
+                            "string" => 0,
+                            "bool" => 1,
+                            "int" => 2,
+                            "short" => 3,
+                            "long" => 4,
+                            "byte" => 5,
+                            "uint" => 6,
+                            "ushort" => 7,
+                            "ulong" => 8,
+                            "float" => 9,
+                            "double" => 10,
+                            _ => {panic!("");},
+                        })
                     } else {
                         Token::Lit(build)
                     }
@@ -309,11 +373,13 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
         }
         if contents[i] == '@' {
             i += 1;
+            cc += 1;
             while i < l {
                 if !(contents[i].is_alphanumeric() || contents[i] == '_') {
                     break;
                 }
                 build.push(contents[i]);
+                cc += 1;
                 i += 1;
             }
             v.push(Token::Dir(build));
@@ -323,7 +389,10 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
         if contents[i] == '(' {
             let mut depth: usize = 1;
             i += 1;
+            cc += 1;
             while i < l {
+                cc+=1;
+                if contents[i] == '\n' {lc+=1;cc=0;}
                 if contents[i] == ')' {
                     depth -= 1;
                     if depth == 0 {
@@ -336,9 +405,10 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
                 }
                 i += 1;
             }
-            v.push(Token::Grp(c_comp(&build.chars().collect::<Vec<char>>())?));
+            v.push(Token::Grp(match c_comp(&build.chars().collect::<Vec<char>>(), lc, cc){Ok(v)=>v,Err(e)=>{return Err(c_stamp(&e, lc, cc));}}));
             build = String::new();
             i += 1;
+            cc+=1;
             continue;
         }
         v.push(Token::Sym(contents[i]));
@@ -349,5 +419,5 @@ fn c_comp(contents: &[char]) -> Result<Vec<Token>, String> {
 
 pub fn compile(path: &str) -> Result<Vec<Token>, String> {
     let contents: Vec<char> = match String::from_utf8(match read(path){Ok(ve)=>ve,Err(_)=>{return Err("ERROR READING FILE".to_owned());}}){Ok(s)=>s,Err(_)=>{return Err("FILE CONTENTS NOT VALID UTF8".to_owned());}}.chars().collect();
-    return c_comp(&contents[..]);
+    return c_comp(&contents[..], 0, 0);
 }
