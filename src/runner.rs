@@ -1,5 +1,6 @@
 use crate::files::{save, load, compile};
-use crate::data::Token;
+use crate::data::{Token, ArgsObj};
+use crate::storage::ClassObj;
 
 pub struct Runner {
 }
@@ -31,6 +32,8 @@ impl Runner {
             return;
         }
         println!("RUNNING LANG 4 WITH {}", match flags {0=>"nothing",1=>"compile & save",2=>"load & run",4=>"compile & run",5=>"compile & save & run",_=>"invalid"});
+        let mut tx = ClassObj::new(0, "Test");
+        println!("{tx:?}\n{:?}", tx.create(ArgsObj {}));
         if flags == 1 {
             save(&v[1], &match compile(&v[0]) {Ok(x)=>x,Err(e)=>{panic!("{}", e);}});
         }

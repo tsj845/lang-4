@@ -1,4 +1,10 @@
-use std::fmt;
+use std::{fmt, collections::hash_map::DefaultHasher, hash::Hash, hash::Hasher};
+
+pub fn hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    return s.finish();
+}
 
 pub fn token_to_id(t: &Token) -> u8 {
     return match t {
@@ -102,5 +108,38 @@ impl fmt::Debug for Token {
         };
         print!(")");
         return Ok(());
+    }
+}
+
+pub struct ArgsObj {}
+
+#[derive(Clone)]
+pub struct PropsObj {}
+
+impl fmt::Debug for PropsObj {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().finish()
+    }
+}
+
+pub struct ClassInstObj {
+    cid: usize,
+    id: usize,
+    props: PropsObj,
+}
+
+impl fmt::Debug for ClassInstObj {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClassInstObj").field("class_id", &self.cid).field("id", &self.id).field("props", &self.props).finish()
+    }
+}
+
+impl ClassInstObj {
+    pub fn new(cid: usize, id: usize, props: PropsObj) -> ClassInstObj {
+        ClassInstObj {
+            cid: cid,
+            id: id,
+            props: props,
+        }
     }
 }
