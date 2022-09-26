@@ -1,0 +1,72 @@
+PURPOSE: provide better details on complex directives
+
+@CHECK();
+
+provides various checks on the values of arguments so that code is more concise
+
+when an @check directive is not met, a CheckViolationError is thrown
+
+STD FORM: @check(Literal argname, Literal checktype, Dependent *parameters);
+
+appropriate values for checktype are dependent on which protocols the type of argname implements
+
+appropriate values for parameters are dependent on what the value of checktype is
+
+Length: len_g, len_l, len_ge, len_le, len_eq, len_clmp
+parameters: emin, emax, imin, imax, value, (imin, imax)
+
+Cmp: g, l, ge, le, eq, clmp
+parameters: emin, emax, imin, imax, value, (imin, imax)
+
+
+
+@UNSAFE()
+
+inline directive declaring a block as being allowed to use unsafe directives and functions
+
+failure to declare a block as unsafe before using an unsafe directive or function will immediately throw an UnsafeViolationError
+
+STD FORMS:
+```
+@unsafe() {
+    // code
+}
+```
+```
+@unsafe() [func decl] {
+    // code
+}
+```
+
+@TRANSMUTE();
+
+in place transmutation from one type to another where the only check imposed on the conversion is that the number of bits at the start and end are the same
+
+STD FORM: @transmute(Literal typename, Literal varname);
+
+example:
+```
+[byte] bytearr = [0, 0, 0, 0];
+println(bytearr); // : "(byte)[0, 0, 0, 0]"
+@unsafe() {
+    @transmute(int, bytearr);
+}
+println(bytearr); // : "(int)0"
+```
+demonstrate how unrestricted "@transmute();" is:
+```
+string mystr = "\x00\x00\x00\x00"
+println(mystr); // : "(string, 4, mystr)'\x00\x00\x00\x00'"
+@unsafe() {
+    @transmute(int, mystr);
+}
+println(mystr); // : "(int)0"
+```
+
+fialure example:
+```
+string mystr = "somestring";
+@unsafe() {
+    @transmute(int, mystr); // : BitCountError("tried to convert (string, 10, mystr)'somestring' to (int) but int has 32 bits not 80")
+}
+```

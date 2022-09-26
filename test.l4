@@ -1,8 +1,20 @@
-@TEST();
+@test("SOME STRING VALUE", 010);
 
 class Test {
     private static readonly bool on = true;
+    int i32v = 200;
     string hello = "world";
 }
 
 ("TEST" + ("!" + "\x1b[38;2;0;255;255m?\x1b[0m"));
+
+@start_raw();
+Ptr("START RAW HERE")
+Kwd("class") Lit("RawClass") Sym({)
+Kwd("static") Kwd("readonly") Typ(bool) Lit("boolprop")
+Opr(=) Dat(Bool(true)) Sym(;)
+Lit("constructor") Grp() Sym({)
+Lit("println") Grp(Dat(String("Hello From Raw"))) Sym(;)
+Sym(}) Sym(})
+@end_raw();
+"OK NOW";

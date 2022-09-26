@@ -142,19 +142,84 @@ class _ {
     [public|private]? [static]? [returntype] func [name] (*[arglst]) {}
 }
 
+RAW FORMAT
+
+used to inject raw tokens into the stream
+
+fmt: [TOKENTYPE]([TOKENDATA])
+
+Grp(Dat(Int(0)) Opr(+) Dat(Int(1)))
+Ptr("PTR TARGET")
+Dat(PRIMITIVE(VALUE))
+Opr(OPERATION)
+Dir("DIRECTIVE NAME") Grp() Sym(;)
+Kwd("MYKEY")
+Lit("LITERAL VALUE")
+Sym(char)
+Typ(typename)
+
+example class in RAW FORMAT:
+```
+@start_raw();
+Kwd("class") Lit("RawClass") Sym({)
+Kwd("static") Kwd("readonly") Typ(bool) Lit("boolprop")
+Opr(=) Dat(Bool(true)) Sym(;)
+Lit("constructor") Grp() Sym({)
+Lit("println") Grp(Dat(String("Hello From Raw"))) Sym(;)
+Sym(}) Sym(})
+@end_raw();
+```
+
+equivalent in standard fmt:
+```
+class RawClass {
+    static readonly bool boolprop = true;
+    constructor () {
+        println("Hello From Raw");
+    }
+}
+```
+
 DIRECTIVES
 
 directives are statements that directly invoke rust code from the interpreter, note that directives are not hardcoded into the interpreter and are modular
 
 accessed with "@[directive](*[arglst]);"
 
-@wraps(); - function below conforms to the wrapper function standard
-@wrap(Wrapper wrapper); - wraps the below function in the given wrapper function
+@start_raw(); - everything until the "@end_raw();" directive is in the RAW format
+
+@end_raw(); - end of section written in the RAW format
+
+@clamp(Literal argname, Number low, Number high); where typeof (argname, low, high) ARE Number AND SAME - clamps the value of argname between low and high
+
+@check(Literal argname, *VARIENTS); - see @check in "directives-extended.txt"
+
+@wrapper(); - function below conforms to the wrapper function standard
+
+@wrap(Wrapper wrapper); - wraps the below function in the given wrapper function, given function must have "@wrapper" used on it
+
 @parent(Object parent_class); - the below class should inherit from parent class
+
+@proto(); - marks the class below as a protocol descriptor, PROTOCOLS MAY NOT BE CONSTRUCTED
+
+@implements(Protocol proto); - the below class conforms to the given protocol
+
+@must_override(); - the below method must be overridden by the implementation of the protocol
+
+@no_override(); - the below method cannot be overridden by child classes or implementations of protocols
+
+@seperate(); - the below field or method should be marked as belonging to the parent class, methods not marked seperate that invoke seperate methods or use seperate fields will not break
+
+@unsafe() - inline directive see "directives-extended.txt" for details
+
+@is_unsafe(); - the below function is unsafe and can only be called using an "@unsafe()" block
+
+@transmute(Literal typename, Literal varname); - unsafe directive that converts a value to another type where the only check imposed is that the total number of bits in both types is the same, see "directives-extended.txt" for details
 
 STD
 
-io - stdin, stdout, stderr
+auto - println
+io - stdin {read, readline, readlines}, stdout {write}, stderr {write}
 fs - File {open, close, read, write, tell, seek}
 random - Random {random, getseed, setseed, randint, randf, choice, shuffle}
 sys - env, argv, argc, command

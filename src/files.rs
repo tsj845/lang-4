@@ -161,6 +161,282 @@ fn c_stamp(emsg: &str, lc: usize, cc: usize) -> String {
     return format!("{emsg} ({lc}, {cc})");
 }
 
+fn c_rawc(mut lc: usize, mut cc: usize, contents: &[char], v: &mut Vec<Token>) -> Result<(), String> {
+    let mut i: usize = 0;
+    let l: usize = contents.len();
+    let mut build: String = String::new();
+    let mut tokid: [char; 3] = ['0', '0', '0'];
+    let mut tidcount: usize = 0;
+    while i < l {
+        if contents[i] == '\n' || contents[i] == ' ' {
+            cc += 1;
+            if contents[i] == '\n' {
+                lc += 1;
+                cc = 0;
+            }
+            i += 1;
+            continue;
+        }
+        tokid[tidcount] = contents[i];
+        tidcount += 1;
+        if tidcount == 3 {
+            tidcount = 0;
+            i += 2;
+            if tokid == ['G','r','p'] {
+                let mut gv: Vec<Token> = Vec::new();
+                let mut d: usize = 1;
+                let f = (i, lc, cc);
+                loop {
+                    if contents[i] == '(' {
+                        d += 1;
+                    }
+                    if contents[i] == ')' {
+                        d -= 1;
+                        if d == 0 {
+                            break;
+                        }
+                    }
+                    cc += 1;
+                    if contents[i] == '\n' {
+                        cc = 0;
+                        lc += 1;
+                    }
+                    i += 1;
+                    if i == l {
+                        return Err(c_stamp("UNCLOSED GRP TOKEN", lc, cc));
+                    }
+                }
+                match c_rawc(f.1, f.2, &contents[f.0..i], &mut gv) {Ok(_)=>{},Err(e)=>{return Err(c_stamp(format!("GRP TOKEN CONTENTS ERROR: {e}").as_str(), f.1, f.2));}};
+                v.push(Token::Grp(gv));
+            } else if match tokid {['P','t','r']=>true,['D','i','r']=>true,['K','w','d']=>true,['L','i','t']=>true,_=>false} {
+                if contents[i] != '"' {
+                    return Err(c_stamp("MALFORMED STR LIKE TOKEN", lc, cc));
+                }
+                i += 1;
+                loop {
+                    if contents[i] == '"' {
+                        break;
+                    }
+                    build.push(contents[i]);
+                    i += 1;
+                    if i == l {
+                        return Err(c_stamp("UNCLOSED STR LIKE TOKEN", lc, cc));
+                    }
+                }
+                i += 1;
+                v.push(match tokid {
+                    ['P','t','r'] => Token::Ptr(build),
+                    ['D','i','r'] => Token::Dir(build),
+                    ['K','w','d'] => Token::Kwd(build),
+                    ['L','i','t'] => Token::Lit(build),
+                    _ => {panic!("");}
+                });
+                build = String::new();
+            } else if tokid == ['D','a','t'] {
+                loop {
+                    if contents[i] == '(' {
+                        break;
+                    }
+                    if contents[i] == '\n' {
+                        return Err(c_stamp("BROKEN DATA (NEWLINE)", lc, cc));
+                    }
+                    build.push(contents[i]);
+                    i += 1;
+                    cc += 1;
+                    if i == l {
+                        return Err(c_stamp("UNOPENED PRIMITIVE DECLARATION", lc, cc));
+                    }
+                }
+                i += 1;
+                cc += 1;
+                let x = build;
+                build = String::new();
+                if x == "String" {
+                    if contents[i] != '"' {
+                        return Err(c_stamp("UNOPENED STRING PRIMITIVE VALUE", lc, cc));
+                    }
+                    i += 1;
+                    cc += 1;
+                }
+                loop {
+                    if contents[i] == ')' {
+                        break;
+                    }
+                    if contents[i] == '"' && x == "String" && contents[i-1] != '\\' {
+                        i += 1;
+                        cc += 1;
+                        if contents[i] != ')' {
+                            return Err(c_stamp("UNCLOSED PRIMITIVE STR DECLARATION", lc, cc));
+                        }
+                        break;
+                    }
+                    if contents[i] == '\n' {
+                        return Err(c_stamp("BROKEN DATA (NEWLINE)", lc, cc));
+                    }
+                    build.push(contents[i]);
+                    cc += 1;
+                    i += 1;
+                    if i == l {
+                        return Err(c_stamp("UNCLOSED PRIMITIVE DECLARATION", lc, cc));
+                    }
+                }
+                v.push(Token::Dat(match x.as_str() {
+                    "String" => Primitive::String(build),
+                    "Bool" => Primitive::Bool(match build.as_str() {"true"=>true,"false"=>false,_=>{return Err(c_stamp("INVALID VALUE FOR BOOLEAN PRIMITIVE", lc, cc));}}),
+                    "Int" => Primitive::Int(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING INT FROM {build}").as_str(), lc, cc));}}),
+                    "Short" => Primitive::Short(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING SHORT FROM {build}").as_str(), lc, cc));}}),
+                    "Long" => Primitive::Long(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING LONG FROM {build}").as_str(), lc, cc));}}),
+                    "Byte" => Primitive::Byte(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING BYTE FROM {build}").as_str(), lc, cc));}}),
+                    "UInt" => Primitive::UInt(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING UINT FROM {build}").as_str(), lc, cc));}}),
+                    "UShort" => Primitive::UShort(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING USHORT FROM {build}").as_str(), lc, cc));}}),
+                    "ULong" => Primitive::ULong(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING ULONG FROM {build}").as_str(), lc, cc));}}),
+                    "Float" => Primitive::Float(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING FLOAT FROM {build}").as_str(), lc, cc));}}),
+                    "Double" => Primitive::Double(match build.parse() {Ok(x)=>x,Err(_)=>{return Err(c_stamp(format!("ERROR PARSING DOUBLE FROM {build}").as_str(), lc, cc));}}),
+                    t => {return Err(c_stamp(format!("INVALID PRIMITIVE TYPE ({t})").as_str(), lc, cc));}
+                }));
+                build = String::new();
+                i += 1;
+            } else if tokid == ['O','p','r'] {
+                let freeze = i;
+                v.push(Token::Opr(match contents[i] {
+                    ',' => 45,
+                    ':' => 46,
+                    '+' => match i + 1 < l {false=>0,_=>match contents[i+1] {
+                        '=' => {i+=1;32},
+                        '+' => {i+=1;39},
+                        _ => 0,
+                    }},
+                    '-' => match i + 1 < l {false=>1,_=>match contents[i+1] {
+                        '=' => {i+=1;33},
+                        '-' => {i+=1;40},
+                        _ => 1,
+                    }},
+                    '*' => match i + 1 < l {false=>2,_=>match contents[i+1] {
+                        '*' => match contents[i+2] {
+                            '=' => {i+=2;36},
+                            _ => {i+=1;4},
+                        },
+                        '=' => {i+=1;34},
+                        _ => 2,
+                    }},
+                    '/' => match i + 1 < l {false=>3,_=>match contents[i+1] {
+                        '=' => {i+=1;35},
+                        _ => 3,
+                    }},
+                    '%' => match i + 1 < l {false=>5,_=>match contents[i+1] {
+                        '=' => {i+=1;37},
+                        _ => 5,
+                    }},
+                    '!' => match i + 1 < l {false=>6,_=>match contents[i+1] {
+                        '=' => {i+=1;25},
+                        '!' => match contents[i+2] {
+                            '=' => {i+=2;26},
+                            _ => {return Err(c_stamp("INVALID OPERATOR",lc,cc));},
+                        },
+                        _ => 6,
+                    }},
+                    '&' => match i + 1 < l {false=>7,_=>match contents[i+1] {
+                        '&' => match contents[i+2] {
+                            '=' => {i+=2;28},
+                            _ => {i+=1;8},
+                        },
+                        '=' => {i+=1;27},
+                        _ => 7,
+                    }},
+                    '|' => match i + 1 < l {false=>9,_=>{i+=1;match contents[i] {
+                        '|' => match contents[i+1] {
+                            '=' => {i+=1;30},
+                            _ => 10,
+                        },
+                        '=' => 29,
+                        '<' => match i + 1 < l {false=>22,_=>match contents[i+1] {
+                            '=' => {i+=1;43},
+                            _ => 22,
+                        }},
+                        _ => {i-=1;9},
+                    }}},
+                    '^' => match i + 1 < l {false=>11,_=>match contents[i+1] {
+                        '=' => {i+=1;31},
+                        _ => 11,
+                    }},
+                    '<' => match i + 1 < l {false=>12,_=>{i+=1;match contents[i] {
+                        '=' => 18,
+                        '<' => match i + 1 < l {false=>20,_=>match contents[i+1] {
+                            '=' => {i+=1;41},
+                            _ => 20,
+                        }},
+                        _ => {i-=1;12},
+                    }}},
+                    '>' => match i + 1 < l {false=>13,_=>{i+=1;match contents[i] {
+                        '=' => 19,
+                        '>' => match i + 1 < l {false=>21,_=>match contents[i+1] {
+                            '=' => {i+=1;42},
+                            _ => 21,
+                        }},
+                        '|' => match i + 1 < l {false=>23,_=>match contents[i+1] {
+                            '=' => {i+=1;44},
+                            _ => 23,
+                        }},
+                        _ => {i-=1;13},
+                    }}},
+                    '.' => match i + 1 < l {false=>15,_=>match contents[i+1] {
+                        '.' => match contents[i+2] {
+                            '.' => {i+=2;14},
+                            _ => {return Err(c_stamp("INVALID OPERATOR",lc,cc));},
+                        },
+                        _ => 15,
+                    }},
+                    '?' => 16,
+                    '=' => match i + 1 < l {false=>17,_=>match contents[i+1] {
+                        '=' => {i+=1;24},
+                        _ => 17,
+                    }},
+                    '$' => 38,
+                    _ => {return Err(c_stamp("UNEXPECTED OPERATOR",lc,cc));},
+                }));
+                i += 1;
+                cc += i - freeze;
+            } else if tokid == ['S','y','m'] {
+                v.push(Token::Sym(contents[i]));
+                i += 1;
+            } else if tokid == ['T','y','p'] {
+                loop {
+                    if contents[i] == ')' {
+                        break;
+                    }
+                    if !contents[i].is_alphabetic() {
+                        return Err(c_stamp("INVALID TYP TOKEN, TYPE MUST BE ALL ALPHA", lc, cc));
+                    }
+                    build.push(contents[i]);
+                    i += 1;
+                    if i == l {
+                        return Err(c_stamp("UNCLOSED TYP TOKEN", lc, cc));
+                    }
+                }
+                v.push(Token::Typ(match build.as_str() {
+                    "string" => 0,
+                    "bool" => 1,
+                    "int" => 2,
+                    "short" => 3,
+                    "long" => 4,
+                    "byte" => 5,
+                    "uint" => 6,
+                    "ushort" => 7,
+                    "ulong" => 8,
+                    "float" => 9,
+                    "double" => 10,
+                    _ => {return Err(c_stamp("INVALID TYP NAME", lc, cc));}
+                }));
+                build = String::new();
+            } else {
+                return Err(format!("INVALID TOKEN ID {tokid:?} ({lc}, {cc})"));
+            }
+        }
+        i += 1;
+    }
+    return Ok(());
+}
+
 fn c_comp(contents: &[char], mut lc: usize, mut cc: usize) -> Result<Vec<Token>, String> {
     // for c in contents {
     //     print!("{c}");
@@ -228,6 +504,19 @@ fn c_comp(contents: &[char], mut lc: usize, mut cc: usize) -> Result<Vec<Token>,
             }
             i += 1;
             cc += 1;
+            continue;
+        }
+        // int
+        if contents[i].is_ascii_digit() {
+            while i < l {
+                if !contents[i].is_ascii_digit() {
+                    break;
+                }
+                build.push(contents[i]);
+                i += 1;
+            }
+            v.push(Token::Dat(Primitive::Int(build.parse().unwrap())));
+            build = String::new();
             continue;
         }
         // operators
@@ -382,7 +671,46 @@ fn c_comp(contents: &[char], mut lc: usize, mut cc: usize) -> Result<Vec<Token>,
                 cc += 1;
                 i += 1;
             }
-            v.push(Token::Dir(build));
+            if build == "start_raw" {
+                if &contents[i..i+3] != &['(',')',';'] {
+                    return Err(c_stamp("INVALID START RAW STATEMENT", lc, cc));
+                }
+                i += 3;
+                cc += 3;
+                let ifreeze = (i, lc, cc);
+                let mut ef: usize = 0;
+                build = String::new();
+                'outer : while i < l {
+                    if contents[i] == '\n' {
+                        lc += 1;
+                        cc = 0;
+                    }
+                    if contents[i] == '@' {
+                        ef = i;
+                        while i < l {
+                            build.push(contents[i]);
+                            if contents[i] == ';' {
+                                if build == "@end_raw();" {
+                                    break 'outer;
+                                }
+                                return Err(c_stamp("DIRECTIVE EXPRESSIONS NOT ALLOWED INSIDE OF RAW SECTIONS", lc, cc));
+                            }
+                            i += 1;
+                        }
+                        return Err(c_stamp("UNCLOSED ENDING DIRECTIVE", lc, cc));
+                    }
+                    i += 1;
+                    cc += 1;
+                }
+                if ef == 0 {
+                    return Err(c_stamp("UNCLOSED RAW SECTION", ifreeze.1, ifreeze.2));
+                }
+                match c_rawc(ifreeze.1, ifreeze.2, &contents[ifreeze.0..ef], &mut v) {Ok(_)=>{},Err(e)=>{return Err(c_stamp(&e, lc, cc));}};
+                i += 1;
+                cc += 1;
+            } else {
+                v.push(Token::Dir(build));
+            }
             build = String::new();
             continue;
         }
