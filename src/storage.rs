@@ -1,20 +1,98 @@
 use std::{collections::HashMap};
 use std::fmt;
-use crate::data::{hash, Token, ClassInstObj, PropsObj, FuncObj};
+use crate::data::{hash, Token, ClassInstObj, PropsObj, FuncObj, PrimType, Primitive};
 
-pub type VarScope = HashMap<u64, Token>;
+pub type VarScope = HashMap<u64, (u8, Token)>;
+
+pub struct Interface {
+    oid: u64,
+    myname: String,
+    props: PropsObj,
+    implementing: Vec<u64>,
+}
+
+impl Interface {
+    pub fn new (oid: u64, name: &str, props: PropsObj, implementing: &[u64]) -> Interface {
+        Interface {
+            oid: oid,
+            myname: name.to_owned(),
+            props: props,
+            implementing: Vec::from(implementing),
+        }
+    }
+    pub fn implements (&self, iid: u64) -> bool {
+        return self.implementing.as_slice().contains(&iid);
+    }
+}
+
+pub struct EnumItemInstance {
+    pub eid: (u64, u64),
+    pub iid: u64,
+    props: Vec<Primitive>,
+}
+
+impl EnumItemInstance {
+    pub fn getprops (&self) -> &Vec<Primitive> {
+        return &self.props;
+    }
+}
+
+pub struct EnumItem {
+    pub pid: u64,
+    pub iid: u64,
+    pub myname: String,
+    pub store: Vec<PrimType>,
+    current_inst_id: u64,
+}
+
+impl EnumItem {
+    pub fn new (pid: u64, iid: u64, name: &str, store: Vec<PrimType>) -> EnumItem {
+        EnumItem {
+            pid: pid,
+            iid: iid,
+            myname: name.to_owned(),
+            store: store,
+            current_inst_id: 0,
+        }
+    }
+    pub fn construct (&mut self, data: Vec<Primitive>) -> EnumItemInstance {
+        self.current_inst_id += 1;
+        return EnumItemInstance {
+            eid: (self.pid, self.iid),
+            iid: self.current_inst_id - 1,
+            props: data,
+        };
+    }
+}
+
+pub struct Enum {
+    pub oid: u64,
+    pub myname: String,
+    pub items: Vec<EnumItem>,
+}
+
+impl Enum {
+    pub fn new (id: u64, name: &str, items: Vec<EnumItem>) -> Enum {
+        Enum {
+            oid: id,
+            myname: name.to_owned(),
+            items: items,
+        }
+    }
+}
 
 pub struct ClassObj {
     oid: u64,
     myname: String,
     iprops: PropsObj,
     current_inst_id: u64,
+    implementing: Vec<u64>,
     pub stat_funcs: HashMap<u64, FuncObj>,
     pub inst_funcs: HashMap<u64, FuncObj>,
 }
 
 impl ClassObj {
-    pub fn new(oid: u64, name: &str, statics: Vec<FuncObj>, insts: Vec<FuncObj>) -> ClassObj {
+    pub fn new(oid: u64, name: &str, implementing: &[u64], props: PropsObj, statics: Vec<FuncObj>, insts: Vec<FuncObj>) -> ClassObj {
         let mut st: HashMap<u64, FuncObj> = HashMap::new();
         let mut it: HashMap<u64, FuncObj> = HashMap::new();
         for f in statics {
@@ -26,8 +104,9 @@ impl ClassObj {
         ClassObj {
             oid: oid,
             myname: name.to_owned(),
-            iprops: PropsObj {},
+            iprops: props,
             current_inst_id: 0,
+            implementing: Vec::from(implementing),
             stat_funcs: st,
             inst_funcs: it,
         }
@@ -36,6 +115,9 @@ impl ClassObj {
         let x = ClassInstObj::new(self.oid, self.current_inst_id, self.iprops.clone());
         self.current_inst_id += 1;
         return x;
+    }
+    pub fn implements(&self, iid: u64) -> bool {
+        return self.implementing.as_slice().contains(&iid);
     }
 }
 
@@ -81,7 +163,7 @@ impl Storage {
         return true;
     }
     pub fn add_class_obj(&mut self, cname: &str) -> () {
-        self.class_obj_store.insert(hash(&cname), ClassObj::new(0, cname, vec![], vec![]));
+        self.class_obj_store.insert(hash(&cname), ClassObj::new(0, cname, &[], PropsObj{}, vec![], vec![]));
     }
     pub fn add_class_inst(&mut self, cid: u64) -> Result<&ClassInstObj, ()> {
         let x: &mut ClassObj = match self.class_obj_store.get_mut(&cid) {Some(c)=>c,None=>{return Err(());}};
@@ -96,7 +178,7 @@ impl Storage {
     pub fn rem_class_inst(&mut self, cid: u64, id: u64) -> bool {
         return match self.class_inst_store.remove(&(cid, id)) {Some(_)=>true,_=>false};
     }
-    pub fn get_prim_var(&self, varid: u64) -> Result<&Token, bool> {
+    pub fn get_prim_var(&self, varid: u64) -> Result<&(u8, Token), bool> {
         if self.scope_count == 0 {
             return Err(false);
         }
@@ -116,7 +198,7 @@ impl Storage {
         if self.scope_count == 0 {
             return Err(());
         }
-        self.var_scopes[self.scope_count-1].insert(varid, val);
+        self.var_scopes[self.scope_count-1].insert(varid, (0, val));
         return Ok(());
     }
     pub fn class_static_op(&mut self, cid: u64, opid: u64) -> Result<&FuncObj, ()> {

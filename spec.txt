@@ -43,8 +43,13 @@ public [method];
 public [field];
 readonly [field];
 const [type] [name] = [value];
-import [name];
-from [name] import +[items];
+import [name] [as alias]?;
+export [name] [as alias]?;
+export [member_path] [as alias]?;
+export [func declaration] [as alias]?;
+export [class declaration] [as alias]?;
+export [const declaration] [as alias]?;
+from [name] import +[items] [as alias]?;
 [var] as [type];
 
 RESERVED NAMES
@@ -62,15 +67,19 @@ PRIMITIVE TYPES
 
 string
 bool
-int
-short
-long
-byte
-uint
-ushort
-ulong
-float
-double
+u8
+u16
+u32
+u64
+u128
+i8
+i16
+i32
+i64
+i128
+f32
+f64
+void
 
 OPERATORS
 
@@ -133,8 +142,7 @@ to return a class use the "unwrap" operator ("$"), this will tell the interprete
 
 ORDERS
 
-@parent(_);
-class _ {
+class _ [extends [classlst,]+]? [implements [interfaces,]+]? {
     [public|private]? [static]? [readonly]? [type] [name];...
     constructor (*[arglst]) {
         [super();]?
@@ -190,19 +198,9 @@ accessed with "@[directive](*[arglst]);"
 
 @end_raw(); - end of section written in the RAW format
 
-@clamp(Literal argname, Number low, Number high); where typeof (argname, low, high) ARE Number AND SAME - clamps the value of argname between low and high
-
-@check(Literal argname, *VARIENTS); - see @check in "directives-extended.txt"
-
 @wrapper(); - function below conforms to the wrapper function standard
 
 @wrap(Wrapper wrapper); - wraps the below function in the given wrapper function, given function must have "@wrapper" used on it
-
-@parent(Object parent_class); - the below class should inherit from parent class
-
-@proto(); - marks the class below as a protocol descriptor, PROTOCOLS MAY NOT BE CONSTRUCTED
-
-@implements(Protocol proto); - the below class conforms to the given protocol
 
 @must_override(); - the below method must be overridden by the implementation of the protocol
 
@@ -223,3 +221,11 @@ io - stdin {read, readline, readlines}, stdout {write}, stderr {write}
 fs - File {open, close, read, write, tell, seek}
 random - Random {random, getseed, setseed, randint, randf, choice, shuffle}
 sys - env, argv, argc, command
+thread - Thread {:new, start, stop, kill, wait, signal, listen}
+mutex - Mutex {:bind, aquire, release}
+
+MUTEXES
+
+due to the fact that certain ways of implementing mutexes would be problematic, they must be implemented this way:
+
+when bound, a mutex sets the "mutexed" flag of the variable to "1"

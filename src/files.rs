@@ -1,10 +1,6 @@
-use crate::data::{Token, Primitive, token_to_id, primitive_to_id};
+use crate::data::{Token, Primitive, token_to_id, primitive_to_id, Keyword, KEYWORDS, TYPELST, Directive};
 use crate::tobytes::*;
 use std::fs::{read, write};
-
-const KEYWORDS: [&str; 24] = ["return", "returnf", "func", "if", "elseif", "else", "loop", "while", "for", "continue", "break", "try", "catch", "finally", "class", "constructor", "static", "private", "public", "readonly", "const", "import", "from", "as"];
-
-const TYPELST: [&str; 11] = ["string", "bool", "int", "short", "long", "byte", "uint", "ushort", "ulong", "float", "double"];
 
 fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
     let mut v: Vec<Token> = Vec::new();
@@ -16,15 +12,13 @@ fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
             break;
         }
         let id = data[i];
-        if id == 1 || id == 4 || id == 5 || id == 6 {
+        if id == 1 || id == 6 {
             let length: usize = bytes_to_big(&data[i+1..i+9]);
             // println!("{}, {:?}", i, data);
             // println!("{}, {:?}", length, &data[i+1..i+9]);
             let string: String = match String::from_utf8(Vec::from(&data[i+9..i+9+length])) {Ok(s)=>s,Err(_)=>{return Err(String::from("INVALID STRING LOAD NON UTF8"));}};
             v.push(match id {
                 1 => Token::Ptr(string),
-                4 => Token::Dir(string),
-                5 => Token::Kwd(string),
                 6 => Token::Lit(string),
                 _ => {return Err(String::from("UNEXPECTED TOKEN TYPE FOR STRING LOAD"));},
             });
@@ -36,6 +30,12 @@ fn l_load(data: &Vec<u8>) -> Result<Vec<Token>, String> {
             i += 8 + length;
         } else if id == 3 {
             v.push(Token::Opr(*&data[i+1]));
+            i += 1;
+        } else if id == 4 {
+            v.push(Token::Dir(*&data[i+1]));
+            i += 1;
+        } else if id == 5 {
+            v.push(Token::Kwd(*&data[i+1]));
             i += 1;
         } else if id == 8 {
             v.push(Token::Typ(*&data[i+1]));
@@ -121,8 +121,8 @@ fn s_flatten(data: &Vec<Token>) -> Vec<u8> {
             let flat: Vec<u8> = s_flatten(match &data[i] {Token::Grp(v)=>v,_=>{panic!("");}});
             v.extend(big_to_bytes(flat.len()));
             v.extend(flat);
-        } else if id == 1 || id == 4 || id == 5 || id == 6 {
-            let val: &String = match &data[i] {Token::Dir(s)=>s,Token::Kwd(s)=>s,Token::Ptr(s)=>s,Token::Lit(s)=>s,x=>{panic!("{}",token_to_id(&x));}};
+        } else if id == 1 || id == 6 {
+            let val: &String = match &data[i] {Token::Ptr(s)=>s,Token::Lit(s)=>s,x=>{panic!("{}",token_to_id(&x));}};
             v.extend(big_to_bytes(val.len()));
             v.extend(val.as_bytes());
         } else if id == 2 {
@@ -143,8 +143,8 @@ fn s_flatten(data: &Vec<Token>) -> Vec<u8> {
                     Primitive::Null => {},
                 };
             },_=>{panic!("");}};
-        } else if id == 3 || id == 8 {
-            v.push(match &data[i] {Token::Opr(val)=>*val,Token::Typ(val)=>*val,_=>{panic!("");}});
+        } else if id == 3 || id == 8 || id == 4 || id == 5 {
+            v.push(match &data[i] {Token::Opr(val)=>*val,Token::Typ(val)=>*val,Token::Kwd(val)=>*val,Token::Dir(val)=>*val,_=>{panic!("");}});
         } else if id == 7 {
             v.push(match &data[i] {Token::Sym(c)=>*c as u8,_=>{panic!("");}});
         }
@@ -226,8 +226,8 @@ fn c_rawc(mut lc: usize, mut cc: usize, contents: &[char], v: &mut Vec<Token>) -
                 i += 1;
                 v.push(match tokid {
                     ['P','t','r'] => Token::Ptr(build),
-                    ['D','i','r'] => Token::Dir(build),
-                    ['K','w','d'] => Token::Kwd(build),
+                    ['D','i','r'] => Token::Dir(Directive::from(build) as u8),
+                    ['K','w','d'] => Token::Kwd(Keyword::from(build) as u8),
                     ['L','i','t'] => Token::Lit(build),
                     _ => {panic!("");}
                 });
@@ -636,20 +636,23 @@ fn c_comp(contents: &[char], mut lc: usize, mut cc: usize) -> Result<Vec<Token>,
                 "false" => Token::Dat(Primitive::Bool(false)),
                 _ => {
                     if KEYWORDS.contains(&build.as_str()) {
-                        Token::Kwd(build)
+                        Token::Kwd(Keyword::from(build) as u8)
                     } else if TYPELST.contains(&build.as_str()) {
                         Token::Typ(match build.as_str() {
                             "string" => 0,
                             "bool" => 1,
-                            "int" => 2,
-                            "short" => 3,
-                            "long" => 4,
-                            "byte" => 5,
-                            "uint" => 6,
-                            "ushort" => 7,
-                            "ulong" => 8,
-                            "float" => 9,
-                            "double" => 10,
+                            "u8" => 2,
+                            "u16" => 3,
+                            "u32" => 4,
+                            "u64" => 5,
+                            "u128" => 6,
+                            "i8" => 7,
+                            "i16" => 8,
+                            "i32" => 9,
+                            "i64" => 10,
+                            "i128" => 11,
+                            "f32" => 12,
+                            "f64" => 13,
                             _ => {panic!("");},
                         })
                     } else {
@@ -709,7 +712,7 @@ fn c_comp(contents: &[char], mut lc: usize, mut cc: usize) -> Result<Vec<Token>,
                 i += 1;
                 cc += 1;
             } else {
-                v.push(Token::Dir(build));
+                v.push(Token::Dir(Directive::from(build) as u8));
             }
             build = String::new();
             continue;
@@ -745,7 +748,89 @@ fn c_comp(contents: &[char], mut lc: usize, mut cc: usize) -> Result<Vec<Token>,
     return Ok(v);
 }
 
+fn preprocess_block(mut data: &mut Vec<Token>, from: usize, mut to: usize) -> Token {
+    let mut f: Vec<Token> = Vec::new();
+    let mut i: usize = from;
+    let mut freeze: usize = 0;
+    let l: usize = data.len();
+    while i < to {
+        if match data[i]{Token::Sym(c)=>{c=='{'},_=>false} {
+            f.push(data.remove(i));
+            to -= 1;
+            freeze = i;
+            let mut depth: i32 = 1;
+            while depth > 0 {
+                i += 1;
+                if i >= l {
+                    panic!("PREPROCESS ERROR: UNCLOSED CODE BLOCK");
+                }
+                depth += match data[i] {
+                    Token::Sym(c) => match c{'{'=>1,'}'=>-1,_=>0},
+                    _=>0,
+                };
+            }
+            f.push(preprocess_block(&mut data, freeze, i));
+        }
+        f.push(data.remove(i));
+        to -= 1;
+    }
+    return Token::Grp(f);
+}
+
+fn preprocess(mut data: Vec<Token>) -> Result<Vec<Token>, String> {
+    let mut f: Vec<Token> = Vec::new();
+    let mut i: usize = 0;
+    let mut freeze: usize = 0;
+    while data.len() > 0 {
+        if match data[i]{Token::Sym(c)=>{c=='{'},_=>false} {
+            f.push(data.remove(i));
+            freeze = i;
+            let mut depth: i32 = 1;
+            while depth > 0 {
+                i += 1;
+                if i >= data.len() {
+                    panic!("PREPROCESS ERROR: UNCLOSED CODE BLOCK");
+                }
+                depth += match data[i] {
+                    Token::Sym(c) => match c{'{'=>1,'}'=>-1,_=>0},
+                    _=>0,
+                };
+            }
+            f.push(preprocess_block(&mut data, freeze, i));
+            i = 0;
+        }
+        f.push(data.remove(i));
+    }
+    return Ok(f);
+}
+
+const CONV: &[char] = &['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'];
+
+fn to_hex(v: u8) -> String {
+    return format!("{}{}", CONV[(v>>4) as usize], CONV[(v&15) as usize]);
+}
+
+pub fn dump(path: &str) -> () {
+    let contents: Vec<u8> = match read(path){Ok(v)=>v,Err(e)=>{panic!("failed dump when reading: {e}");}};
+    let mut i: usize = 0;
+    let l: usize = contents.len();
+    loop {
+        if i >= l {
+            break;
+        }
+        print!("{}", to_hex(contents[i]));
+        if i % 2 == 1 {
+            print!(" ");
+        }
+        i += 1;
+        if i % 16 == 0 {
+            println!();
+        }
+    }
+    println!();
+}
+
 pub fn compile(path: &str) -> Result<Vec<Token>, String> {
     let contents: Vec<char> = match String::from_utf8(match read(path){Ok(ve)=>ve,Err(_)=>{return Err("ERROR READING FILE".to_owned());}}){Ok(s)=>s,Err(_)=>{return Err("FILE CONTENTS NOT VALID UTF8".to_owned());}}.chars().collect();
-    return c_comp(&contents[..], 0, 0);
+    return preprocess(c_comp(&contents[..], 0, 0)?);
 }

@@ -1,5 +1,5 @@
-use crate::files::{save, load, compile};
-use crate::data::{Token, ArgsObj, token_to_id};
+use crate::files::{save, load, compile, dump};
+use crate::data::{Token, ArgsObj, token_to_id, PropsObj, Directive};
 use crate::storage::{ClassObj, Storage};
 
 pub type EResult = Result<usize, String>;
@@ -56,8 +56,12 @@ impl Runner {
             println!("lang4 0.0.0");
             return;
         }
+        if v[0] == "--dump" {
+            dump(&v[1]);
+            return;
+        }
         println!("RUNNING LANG 4 WITH {}", match flags {0=>"nothing",1=>"compile & save",2=>"load & run",4=>"compile & run",5=>"compile & save & run",_=>"invalid"});
-        let mut tx = ClassObj::new(0, "Test", vec![], vec![]);
+        let mut tx = ClassObj::new(0, "Test", &[], PropsObj{}, vec![], vec![]);
         println!("{tx:?}\n{:?}", tx.create());
         if flags == 1 {
             save(&v[1], &match compile(&v[0]) {Ok(x)=>x,Err(e)=>{panic!("{}", e);}});
@@ -100,27 +104,19 @@ impl Runner {
             return Err("MISSING SEMICOLON AFTER DIRECTIVE".to_owned());
         }
         let arglst: Vec<Token> = self.process_arglst(&data[i+1])?;
-        match &data[i] {Token::Dir(dir)=>match dir.as_str() {
-            "wrapper" => {if arglst.len() > 0 {return Err("ARG COUNT ERROR: EXPECTED NONE, GOT OTHER".to_owned());}},
-            "wrap" => {},
-            "parent" => {},
-            "proto" => {},
-            "implements" => {},
-            "must_override" => {},
-            "no_override" => {},
-            "seperate" => {},
-            "unsafe" => {
+        match &data[i] {Token::Dir(dir)=>match Directive::from(*dir) {
+            Directive::Wrapper => {if arglst.len() > 0 {return Err("ARG COUNT ERROR: EXPECTED NONE, GOT OTHER".to_owned());}},
+            Directive::Wrap => {},
+            Directive::MustOverride => {},
+            Directive::NoOverride => {},
+            Directive::Seperate => {},
+            Directive::Unsafe => {
                 self.flags[0] |= 1;
             },
-            "is_unsafe" => {
+            Directive::IsUnsafe => {
                 self.flags[0] |= 2;
             },
-            "check" => {},
-            "clamp" => {},
-            "transmute" => {
-                self.in_unsafe()?;
-            },
-            "test" => {println!("{arglst:?}");},
+            Directive::Test => {println!("{arglst:?}");},
             _ => {return Err("UNRECOGNIZED DIRECTIVE".to_owned());},
         },_=>{return Err("INTERNAL TOKEN TYPE INCONSISTENCY: EXPECTED DIR, GOT OTHER".to_owned());}};
         return Ok(i);

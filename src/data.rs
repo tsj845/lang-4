@@ -1,5 +1,9 @@
 use std::{fmt, collections::hash_map::DefaultHasher, hash::Hash, hash::Hasher};
 
+pub const KEYWORDS: [&str; 28] = ["return", "returnf", "func", "if", "elseif", "else", "loop", "while", "for", "continue", "break", "try", "catch", "finally", "class", "constructor", "static", "private", "public", "readonly", "const", "import", "export", "from", "as", "interface", "extends", "implements"];
+
+pub const TYPELST: [&str; 15] = ["string", "bool", "u8", "u16", "u32", "u64", "u128", "i8", "i16", "i32", "i64", "i128", "f32", "f64", "void"];
+
 pub fn hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
@@ -35,6 +39,68 @@ pub fn primitive_to_id(p: &Primitive) -> u8 {
         Primitive::Double(_) => 10,
         Primitive::Null => 11,
     };
+}
+
+#[derive(Clone, Copy)]
+pub enum PrimType {
+    String = 0,
+    Bool,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    F32,
+    F64,
+    Void
+}
+
+#[derive(Clone, Copy)]
+pub enum Keyword {
+    Return = 0,
+    Returnf,
+    Func,
+    If,
+    Elseif,
+    Else,
+    Loop,
+    While,
+    For,
+    Continue,
+    Break,
+    Try,
+    Catch,
+    Finally,
+    Class,
+    Static,
+    Private,
+    Public,
+    Readonly,
+    Const,
+    Import,
+    Export,
+    From,
+    As,
+    NoMatch
+}
+
+#[derive(Clone, Copy)]
+pub enum Directive {
+    Wrapper = 0,
+    Wrap,
+    MustOverride,
+    NoOverride,
+    Seperate,
+    Unsafe,
+    IsUnsafe,
+    LIBCALL,
+    Test,
+    NoMatch
 }
 
 #[derive(Clone)]
@@ -85,8 +151,8 @@ pub enum Token {
     Ptr(String), // pointer to an object
     Dat(Primitive), // primitive data
     Opr(u8), // operation
-    Dir(String), // directive call
-    Kwd(String), // keyword
+    Dir(u8), // directive call
+    Kwd(u8), // keyword
     Lit(String), // literal text (names)
     Sym(char), // single character symbol
     Typ(u8), // value type
